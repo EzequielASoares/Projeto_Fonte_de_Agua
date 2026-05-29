@@ -3,54 +3,253 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Monitoramento do Sensor ESP32</title>
+    <title>Painel do Alimentador ESP32</title>
+    <!-- Fontes do Google -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <!-- FontAwesome para Ícones -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Bootstrap -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
-        body { background-color: #f8f9fa; padding-top: 30px; font-family: Arial, sans-serif; }
-        .card { box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-        .table th { background-color: #e9ecef; }
+        :root {
+            --primary-bg: #0f172a;
+            --card-bg: rgba(30, 41, 59, 0.7);
+            --accent-color: #3b82f6;
+            --text-light: #f8fafc;
+            --text-muted: #94a3b8;
+        }
+
+        body {
+            background-color: var(--primary-bg);
+            background-image: radial-gradient(circle at top right, #1e3a8a, transparent 40%),
+                              radial-gradient(circle at bottom left, #0f766e, transparent 40%);
+            background-attachment: fixed;
+            color: var(--text-light);
+            font-family: 'Outfit', sans-serif;
+            min-height: 100vh;
+            padding-top: 50px;
+            padding-bottom: 50px;
+        }
+
+        .card {
+            background-color: var(--card-bg);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 24px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            color: var(--text-light);
+        }
+
+        h1 {
+            font-weight: 700;
+            letter-spacing: -0.5px;
+            background: linear-gradient(to right, #60a5fa, #34d399);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 30px !important;
+        }
+
+        .table {
+            color: var(--text-light);
+            --bs-table-bg: transparent;
+            --bs-table-color: var(--text-light);
+            --bs-table-border-color: rgba(255,255,255,0.05);
+        }
+
+        .table th {
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 0.85rem;
+            letter-spacing: 1px;
+            color: var(--text-muted);
+            border-bottom: 2px solid rgba(255,255,255,0.1);
+            padding: 15px;
+        }
+
+        .table td {
+            padding: 15px;
+            vertical-align: middle;
+        }
+
+        .badge {
+            font-weight: 600;
+            padding: 8px 14px;
+            border-radius: 30px;
+            font-size: 0.85rem;
+            letter-spacing: 0.5px;
+        }
+
+        .bg-success {
+            background-color: rgba(16, 185, 129, 0.15) !important;
+            color: #34d399 !important;
+            border: 1px solid rgba(16, 185, 129, 0.3);
+        }
+
+        .bg-danger {
+            background-color: rgba(239, 68, 68, 0.15) !important;
+            color: #f87171 !important;
+            border: 1px solid rgba(239, 68, 68, 0.3);
+        }
+
+        /* Animação para nova linha */
+        @keyframes fadeInRow {
+            from {
+                opacity: 0;
+                transform: translateY(-10px) scale(0.98);
+                background-color: rgba(59, 130, 246, 0.2);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+                background-color: transparent;
+            }
+        }
+
+        .new-row {
+            animation: fadeInRow 0.8s ease-out forwards;
+        }
+
+        .icon-header {
+            margin-right: 8px;
+            opacity: 0.8;
+        }
+
+        .btn-outline-danger {
+            color: #ef4444;
+        }
+        
+        .btn-outline-danger:hover {
+            background-color: rgba(239, 68, 68, 0.15) !important;
+            color: #f87171 !important;
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <div class="card p-4 mb-4">
-            <h1 class="text-center mb-4">Painel de Controle do Alimentador</h1>
+        <div class="card p-4 p-md-5 mb-4">
+            <h1 class="text-center"><i class="fa-solid fa-paw me-2 text-white"></i> Painel do Alimentador</h1>
             
-            <div class="table-responsive">
-                <table class="table table-bordered table-striped text-center align-middle">
+            <div class="table-responsive mt-2">
+                <table class="table text-center align-middle">
                     <thead>
                         <tr>
-                            <th>Data e Hora</th>
-                            <th>Modo Economia Ativo?</th>
-                            <th>Tempo Total Ligado (s)</th>
+                            <th><i class="fa-regular fa-clock icon-header"></i> Data e Hora</th>
+                            <th><i class="fa-solid fa-bolt icon-header"></i> Modo Economia</th>
+                            <th><i class="fa-solid fa-stopwatch icon-header"></i> Tempo Ligado (s)</th>
+                            <th></th>
                         </tr>
                     </thead>
-                    <tbody>
+                    <tbody id="tabela-corpo">
                         {% for registro in historico %}
-                        <tr>
+                        <tr id="linha-{{ registro.id }}">
                             <td>{{ registro.data_hora }}</td>
                             <td>
                                 <span class="badge {{ 'bg-success' if registro.modo_economia == 'TRUE' else 'bg-danger' }}">
-                                    {{ registro.modo_economia }}
+                                    {% if registro.modo_economia == 'TRUE' %}
+                                        <i class="fa-solid fa-leaf me-1"></i> ATIVO
+                                    {% else %}
+                                        <i class="fa-solid fa-fire me-1"></i> INATIVO
+                                    {% endif %}
                                 </span>
                             </td>
-                            <td>{{ registro.tempo_ligado }}</td>
+                            <td class="fw-bold fs-5">{{ registro.tempo_ligado }}<span class="fs-6 text-muted ms-1">s</span></td>
+                            <td>
+                                <button class="btn btn-sm btn-outline-danger border-0" onclick="apagarRegistro({{ registro.id }})" title="Apagar Registro">
+                                    <i class="fa-solid fa-trash-can"></i>
+                                </button>
+                            </td>
                         </tr>
                         {% endfor %}
                         
                         {% if not historico %}
                         <tr>
-                            <td colspan="3" class="text-muted">Nenhum sinal recebido do Wokwi ainda...</td>
+                            <td colspan="4" class="text-muted py-5" id="msg-vazio">
+                                <i class="fa-solid fa-satellite-dish fa-2x mb-3 opacity-50 d-block"></i>
+                                Nenhum sinal recebido do ESP32 ainda...
+                            </td>
                         </tr>
                         {% endif %}
                     </tbody>
                 </table>
             </div>
-            
-            <div class="text-center mt-3">
-                <button onclick="window.location.reload();" class="btn btn-primary">Atualizar Painel</button>
-            </div>
         </div>
     </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <script>
+        const socket = io();
+
+        socket.on('novo_dado', function(dado) {
+            const tbody = document.getElementById('tabela-corpo');
+            
+            // Remove a mensagem vazia se existir
+            const emptyRow = document.getElementById('msg-vazio');
+            if (emptyRow && emptyRow.parentElement) {
+                emptyRow.parentElement.remove();
+            }
+
+            // Cria a nova linha
+            const tr = document.createElement('tr');
+            tr.id = 'linha-' + dado.id;
+            tr.className = 'new-row'; // Adiciona a classe de animação
+            
+            let badgeHtml = '';
+            if (dado.modo_economia === 'TRUE') {
+                badgeHtml = '<span class="badge bg-success"><i class="fa-solid fa-leaf me-1"></i> ATIVO</span>';
+            } else {
+                badgeHtml = '<span class="badge bg-danger"><i class="fa-solid fa-fire me-1"></i> INATIVO</span>';
+            }
+            
+            tr.innerHTML = `
+                <td>${dado.data_hora}</td>
+                <td>${badgeHtml}</td>
+                <td class="fw-bold fs-5">${dado.tempo_ligado}<span class="fs-6 text-muted ms-1">s</span></td>
+                <td>
+                    <button class="btn btn-sm btn-outline-danger border-0" onclick="apagarRegistro(${dado.id})" title="Apagar Registro">
+                        <i class="fa-solid fa-trash-can"></i>
+                    </button>
+                </td>
+            `;
+
+            // Adiciona no topo
+            tbody.insertBefore(tr, tbody.firstChild);
+        });
+
+        socket.on('remover_linha', function(data) {
+            const linha = document.getElementById('linha-' + data.id);
+            if (linha) {
+                // Animação de fade out
+                linha.style.transition = "opacity 0.3s ease, transform 0.3s ease";
+                linha.style.opacity = "0";
+                linha.style.transform = "scale(0.95)";
+                
+                setTimeout(() => {
+                    linha.remove();
+                    
+                    // Se a tabela ficar vazia, mostra a mensagem novamente
+                    const tbody = document.getElementById('tabela-corpo');
+                    if (tbody.children.length === 0) {
+                        tbody.innerHTML = `
+                            <tr>
+                                <td colspan="4" class="text-muted py-5" id="msg-vazio">
+                                    <i class="fa-solid fa-satellite-dish fa-2x mb-3 opacity-50 d-block"></i>
+                                    Nenhum sinal recebido do ESP32 ainda...
+                                </td>
+                            </tr>
+                        `;
+                    }
+                }, 300);
+            }
+        });
+
+        function apagarRegistro(id) {
+            fetch('/api/dados/' + id, { method: 'DELETE' })
+            .then(response => response.json())
+            .then(data => console.log(data.mensagem || data.erro))
+            .catch(err => console.error("Erro ao apagar:", err));
+        }
+    </script>
 </body>
 </html>

@@ -1,0 +1,16 @@
+# Ambientes Virtuais
+.venv/
+venv/
+env/
+
+# Cache do Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Banco de dados local (não é bom subir os dados de teste para o github)
+dados.db
+
+# Arquivos do sistema (macOS)
+.DS_Store

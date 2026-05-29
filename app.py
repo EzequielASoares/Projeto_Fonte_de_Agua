@@ -1,16 +1,15 @@
-from flask import Flask, render_template, request
+from flask import Flask, render_template, request, jsonify
 from datetime import datetime
 import sqlite3
-
-
+import pytz
+from flask_socketio import SocketIO
 
 app = Flask(__name__)
-
-
+socketio = SocketIO(app, cors_allowed_origins="*")
 DB = 'dados.db'
 
 def init_db():
-    with sqlite3.connect(DB) as con:
+    with sqlite3.connect(DB, timeout=10) as con:
         con.execute('''CREATE TABLE IF NOT EXISTS registros (
             id           INTEGER PRIMARY KEY AUTOINCREMENT,
             data_hora    TEXT,
@@ -20,62 +19,78 @@ def init_db():
 
 init_db()
 
-
-historico_dados = []
-
 @app.route('/', methods=['GET'])
 def index():
-    with sqlite3.connect(DB) as con:
+    with sqlite3.connect(DB, timeout=10) as con:
         con.row_factory = sqlite3.Row
         historico = con.execute(
-            'SELECT * FROM registros ORDER BY id DESC'
+            'SELECT * FROM registros ORDER BY id DESC LIMIT 50'
         ).fetchall()
     return render_template('index.html', historico=historico)
 
 
-@app.route('/', methods=['POST'])
+@app.route('/api/dados', methods=['POST'])
 def receber_sinal():
-    conteudo = request.data.decode('utf-8').strip()
-    agora = datetime.now().strftime('%d/%m/%Y %H:%M:%S')
-    
     try:
-        if ',' in conteudo:
-            modo_sinal, tempo_sinal = conteudo.split(',', 1)
-            tempo_total = int(tempo_sinal)
-        else:
-            modo_sinal = conteudo
-            tempo_total = 0
+        dados = request.get_json(silent=True)
+        if not dados:
+            return jsonify({"erro": "JSON inválido ou ausente"}), 400
 
-        # Aceita tanto "true"/"false" (novo) quanto "1"/"0" (legado)
-        modo_sinal = modo_sinal.strip().lower()
-        if modo_sinal in ("true", "1"):
+        modo_sinal = dados.get('modo_economia')
+        tempo_total = dados.get('tempo_total', 0)
+
+        if modo_sinal is True or modo_sinal == 'true' or modo_sinal == '1':
             modo_economia = "TRUE"
-        elif modo_sinal in ("false", "0"):
+        elif modo_sinal is False or modo_sinal == 'false' or modo_sinal == '0':
             modo_economia = "FALSE"
         else:
-            raise ValueError(f"Valor de modo inválido: '{modo_sinal}'")
+            return jsonify({"erro": f"Valor de modo inválido: '{modo_sinal}'"}), 400
         
+        fuso_sp = pytz.timezone('America/Sao_Paulo')
+        agora = datetime.now(fuso_sp).strftime('%d/%m/%Y %H:%M:%S')
 
-        with sqlite3.connect(DB) as con:
-            con.execute(
+        with sqlite3.connect(DB, timeout=10) as con:
+            cursor = con.execute(
                 'INSERT INTO registros (data_hora, modo_economia, tempo_ligado) VALUES (?,?,?)',
                 (agora, modo_economia, tempo_total)
             )
+            novo_id = cursor.lastrowid
 
-
-        novo_registro = {
+        socketio.emit('novo_dado', {
+            "id": novo_id,
             "data_hora": agora,
             "modo_economia": modo_economia,
             "tempo_ligado": tempo_total
-        }
-        
-        historico_dados.insert(0, novo_registro)
-        print(f"[WOKWI] {agora} | Modo Economia: {modo_economia} | Tempo: {tempo_total}s")
-        return "Dados Processados", 200
+        })
+
+        print(f"[ESP32] {agora} | Modo Economia: {modo_economia} | Tempo: {tempo_total}s")
+        return jsonify({"mensagem": "Dados Processados"}), 200
 
     except Exception as e:
-        print(f"[ERRO] Payload recebido: '{conteudo}' | Falha: {e}")
-        return "Erro Interno", 500
+        print(f"[ERRO] Falha no processamento: {e}")
+        return jsonify({"erro": "Erro Interno"}), 500
+
+@app.route('/api/limpar', methods=['POST'])
+def limpar_dados():
+    try:
+        with sqlite3.connect(DB, timeout=10) as con:
+            con.execute('DELETE FROM registros')
+        socketio.emit('limpar_tabela')
+        return jsonify({"mensagem": "Histórico limpo com sucesso"}), 200
+    except Exception as e:
+        print(f"[ERRO] Falha ao limpar: {e}")
+        return jsonify({"erro": "Erro Interno"}), 500
+
+@app.route('/api/dados/<int:registro_id>', methods=['DELETE'])
+def deletar_dado(registro_id):
+    try:
+        with sqlite3.connect(DB, timeout=10) as con:
+            con.execute('DELETE FROM registros WHERE id = ?', (registro_id,))
+        socketio.emit('remover_linha', {"id": registro_id})
+        return jsonify({"mensagem": "Registro apagado"}), 200
+    except Exception as e:
+        print(f"[ERRO] Falha ao deletar {registro_id}: {e}")
+        return jsonify({"erro": "Erro Interno"}), 500
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    socketio.run(app, host='0.0.0.0', port=5020, debug=True)
