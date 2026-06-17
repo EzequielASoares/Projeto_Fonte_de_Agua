@@ -11,13 +11,17 @@ socketio = SocketIO(app, cors_allowed_origins="*")
 DB = 'dados.db'
 
 def init_db():
-    with closing(sqlite3.connect(DB, timeout=10)) as con:
-        con.execute('''CREATE TABLE IF NOT EXISTS registros (
-            id           INTEGER PRIMARY KEY AUTOINCREMENT,
-            data_hora    TEXT,
-            modo_economia TEXT,
-            tempo_ligado  INTEGER
-        )''')
+    con = sqlite3.connect(DB, timeout=10)
+    try:
+        with con:
+            con.execute('''CREATE TABLE IF NOT EXISTS registros (
+                id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                data_hora    TEXT,
+                modo_economia TEXT,
+                tempo_ligado  INTEGER
+            )''')
+    finally:
+        con.close()
 
 init_db()
 
@@ -51,12 +55,16 @@ def receber_sinal():
         fuso_sp = pytz.timezone('America/Sao_Paulo')
         agora = datetime.now(fuso_sp).strftime('%d/%m/%Y %H:%M:%S')
 
-        with closing(sqlite3.connect(DB, timeout=10)) as con:
-            cursor = con.execute(
-                'INSERT INTO registros (data_hora, modo_economia, tempo_ligado) VALUES (?,?,?)',
-                (agora, modo_economia, tempo_total)
-            )
-            novo_id = cursor.lastrowid
+        con = sqlite3.connect(DB, timeout=10)
+        try:
+            with con:
+                cursor = con.execute(
+                    'INSERT INTO registros (data_hora, modo_economia, tempo_ligado) VALUES (?,?,?)',
+                    (agora, modo_economia, tempo_total)
+                )
+                novo_id = cursor.lastrowid
+        finally:
+            con.close()
 
         socketio.emit('novo_dado', {
             "id": novo_id,
@@ -75,8 +83,12 @@ def receber_sinal():
 @app.route('/api/limpar', methods=['POST'])
 def limpar_dados():
     try:
-        with closing(sqlite3.connect(DB, timeout=10)) as con:
-            con.execute('DELETE FROM registros')
+        con = sqlite3.connect(DB, timeout=10)
+        try:
+            with con:
+                con.execute('DELETE FROM registros')
+        finally:
+            con.close()
         socketio.emit('limpar_tabela')
         return jsonify({"mensagem": "Histórico limpo com sucesso"}), 200
     except Exception as e:
@@ -86,8 +98,12 @@ def limpar_dados():
 @app.route('/api/dados/<int:registro_id>', methods=['DELETE'])
 def deletar_dado(registro_id):
     try:
-        with closing(sqlite3.connect(DB, timeout=10)) as con:
-            con.execute('DELETE FROM registros WHERE id = ?', (registro_id,))
+        con = sqlite3.connect(DB, timeout=10)
+        try:
+            with con:
+                con.execute('DELETE FROM registros WHERE id = ?', (registro_id,))
+        finally:
+            con.close()
         socketio.emit('remover_linha', {"id": registro_id})
         return jsonify({"mensagem": "Registro apagado"}), 200
     except Exception as e:
