@@ -3,13 +3,15 @@ from datetime import datetime
 import sqlite3
 import pytz
 from flask_socketio import SocketIO
+from contextlib import closing
+import os
 
 app = Flask(__name__)
 socketio = SocketIO(app, cors_allowed_origins="*")
 DB = 'dados.db'
 
 def init_db():
-    with sqlite3.connect(DB, timeout=10) as con:
+    with closing(sqlite3.connect(DB, timeout=10)) as con:
         con.execute('''CREATE TABLE IF NOT EXISTS registros (
             id           INTEGER PRIMARY KEY AUTOINCREMENT,
             data_hora    TEXT,
@@ -21,7 +23,7 @@ init_db()
 
 @app.route('/', methods=['GET'])
 def index():
-    with sqlite3.connect(DB, timeout=10) as con:
+    with closing(sqlite3.connect(DB, timeout=10)) as con:
         con.row_factory = sqlite3.Row
         historico = con.execute(
             'SELECT * FROM registros ORDER BY id DESC LIMIT 50'
@@ -49,7 +51,7 @@ def receber_sinal():
         fuso_sp = pytz.timezone('America/Sao_Paulo')
         agora = datetime.now(fuso_sp).strftime('%d/%m/%Y %H:%M:%S')
 
-        with sqlite3.connect(DB, timeout=10) as con:
+        with closing(sqlite3.connect(DB, timeout=10)) as con:
             cursor = con.execute(
                 'INSERT INTO registros (data_hora, modo_economia, tempo_ligado) VALUES (?,?,?)',
                 (agora, modo_economia, tempo_total)
@@ -73,7 +75,7 @@ def receber_sinal():
 @app.route('/api/limpar', methods=['POST'])
 def limpar_dados():
     try:
-        with sqlite3.connect(DB, timeout=10) as con:
+        with closing(sqlite3.connect(DB, timeout=10)) as con:
             con.execute('DELETE FROM registros')
         socketio.emit('limpar_tabela')
         return jsonify({"mensagem": "Histórico limpo com sucesso"}), 200
@@ -84,13 +86,13 @@ def limpar_dados():
 @app.route('/api/dados/<int:registro_id>', methods=['DELETE'])
 def deletar_dado(registro_id):
     try:
-        with sqlite3.connect(DB, timeout=10) as con:
+        with closing(sqlite3.connect(DB, timeout=10)) as con:
             con.execute('DELETE FROM registros WHERE id = ?', (registro_id,))
         socketio.emit('remover_linha', {"id": registro_id})
         return jsonify({"mensagem": "Registro apagado"}), 200
     except Exception as e:
         print(f"[ERRO] Falha ao deletar {registro_id}: {e}")
         return jsonify({"erro": "Erro Interno"}), 500
-
 if __name__ == '__main__':
-    socketio.run(app, host='0.0.0.0', port=5020, debug=True)
+    port = int(os.environ.get('PORT', 5020))
+    socketio.run(app, host='0.0.0.0', port=port, debug=True, allow_unsafe_werkzeug=True)

@@ -10,3 +10,4 @@ packaging==26.2
 Werkzeug==3.1.8
 pytz
 Flask-SocketIO
+eventlet

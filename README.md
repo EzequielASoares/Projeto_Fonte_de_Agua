@@ -15,7 +15,7 @@ Servidor backend e painel de controle (dashboard) desenvolvido em Flask para mon
    ```
 
 3. **Acesse o painel web:**
-   Abra o navegador em `http://localhost:5000` (ou no IP da sua máquina). O painel é atualizado instantaneamente quando novos dados chegam.
+   Abra o navegador em `http://localhost:5020` (ou no IP da sua máquina). O painel é atualizado instantaneamente quando novos dados chegam.
 
 ## 🔌 Conectando o ESP32
 
@@ -23,7 +23,7 @@ Para que o seu ESP32 envie dados para este painel, altere a variável da URL no 
 
 Exemplo de configuração no C++ (substitua pelo IP correto da máquina que roda o Flask):
 ```cpp
-String googleScriptURL = "http://192.168.1.50:5000/api/dados";
+String serverURL = "http://192.168.1.50:5020/api/dados";
 ```
 
 ### Formato do Payload (JSON)

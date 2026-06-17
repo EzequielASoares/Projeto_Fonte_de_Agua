@@ -179,7 +179,7 @@
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
     <script>
-        const socket = io();
+        const socket = io({ transports: ['websocket'] });
 
         socket.on('novo_dado', function(dado) {
             const tbody = document.getElementById('tabela-corpo');
