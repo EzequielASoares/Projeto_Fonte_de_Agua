@@ -14,6 +14,10 @@ def init_db():
     con = sqlite3.connect(DB, timeout=10)
     try:
         with con:
+            # Ativa o modo WAL (Write-Ahead Logging) para permitir leituras e escritas simultâneas
+            con.execute('PRAGMA journal_mode=WAL;')
+            # Ajusta a sincronização para NORMAL para melhorar o desempenho de escrita
+            con.execute('PRAGMA synchronous=NORMAL;')
             con.execute('''CREATE TABLE IF NOT EXISTS registros (
                 id           INTEGER PRIMARY KEY AUTOINCREMENT,
                 data_hora    TEXT,
